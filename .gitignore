@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.venv
+env/
+instance/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+server_log.txt
+start_attempt.log
+restart_attempt.log
+
+# Uploads
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db
