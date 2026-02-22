@@ -55,43 +55,28 @@ class OTPService:
         return "".join(random.choices(string.digits, k=length))
 
     @staticmethod
-    async def create_otp(db: Session, email: str = None, phone: str = None) -> str:
+    async def create_otp(db: Session, email: str) -> str:
         code = OTPService.generate_otp()
         expires = datetime.utcnow() + timedelta(minutes=10)
         
         # Deactivate/Remove old OTPs for this target
-        query = db.query(OTP).filter(OTP.is_used == False)
-        if email:
-            query = query.filter(OTP.email == email)
-        else:
-            query = query.filter(OTP.phone == phone)
-        query.delete()
+        db.query(OTP).filter(OTP.email == email, OTP.is_used == False).delete()
         
-        db_otp = OTP(email=email, phone=phone, code=code, expires_at=expires)
+        db_otp = OTP(email=email, code=code, expires_at=expires)
         db.add(db_otp)
         db.commit()
         
-        if email:
-            await send_otp_email(email, code)
-        else:
-            # Placeholder for SMS Sending logic (e.g. Jio SMS API)
-            print(f"--- SMS OTP for {phone}: {code} ---")
-            
+        await send_otp_email(email, code)
         return code
 
     @staticmethod
-    def verify_otp(db: Session, code: str, email: str = None, phone: str = None) -> bool:
-        query = db.query(OTP).filter(
+    def verify_otp(db: Session, code: str, email: str) -> bool:
+        db_otp = db.query(OTP).filter(
+            OTP.email == email,
             OTP.code == code,
             OTP.expires_at > datetime.utcnow(),
             OTP.is_used == False
-        )
-        if email:
-            query = query.filter(OTP.email == email)
-        else:
-            query = query.filter(OTP.phone == phone)
-            
-        db_otp = query.first()
+        ).first()
         
         if db_otp:
             db_otp.is_used = True

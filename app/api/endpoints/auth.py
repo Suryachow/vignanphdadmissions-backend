@@ -21,17 +21,15 @@ router = APIRouter()
 
 @router.post("/otp/send")
 async def send_otp(data: OTPSend, db: Session = Depends(get_db)):
-    await otp_service.create_otp(db, email=data.email, phone=data.phone)
+    await otp_service.create_otp(db, email=data.email)
     return {"message": "OTP sent"}
 
 @router.post("/otp/verify")
 async def verify_otp(data: OTPVerify, db: Session = Depends(get_db)):
-    if not otp_service.verify_otp(db, code=data.code, email=data.email, phone=data.phone):
+    if not otp_service.verify_otp(db, code=data.code, email=data.email):
         raise HTTPException(status_code=400, detail="Invalid OTP")
     
-    user = None
-    if data.email: user = db.query(User).filter(User.email == data.email).first()
-    elif data.phone: user = db.query(User).filter(User.phone == data.phone).first()
+    user = db.query(User).filter(User.email == data.email).first()
 
     if user:
         access_token = create_access_token(user.id)

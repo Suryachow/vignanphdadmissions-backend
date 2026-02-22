@@ -6,14 +6,12 @@ from app.models.all_models import ApplicationStatus
 # --- OTP ---
 
 class OTPSend(BaseModel):
-    type: str  # "email" or "phone"
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = None
+    type: str  # "email"
+    email: EmailStr
 
 class OTPVerify(BaseModel):
-    type: str  # "email" or "phone"
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = None
+    type: str  # "email"
+    email: EmailStr
     code: str
 
 # --- Auth & User ---
