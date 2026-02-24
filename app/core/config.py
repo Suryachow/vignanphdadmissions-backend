@@ -6,7 +6,8 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Vignan Ph.D Admissions API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api"
-    FRONTEND_URL: str = "http://localhost:5173"
+    FRONTEND_URL: str = "http://localhost:5175"
+    BACKEND_URL: str = "http://localhost:8000"
     
     # Security
     SECRET_KEY: str = "changeme"

@@ -34,8 +34,8 @@ def initiate_payu(
         "firstname": data.firstname or (user.full_name if user else "Student"),
         "email": data.email or (user.email if user else "student@example.com"),
         "phone": data.phone or (user.phone if user else "9999999999"),
-        "surl": f"http://localhost:8000/api/payu/success",
-        "furl": f"http://localhost:8000/api/payu/failure",
+        "surl": f"{settings.BACKEND_URL}/api/payu/success",
+        "furl": f"{settings.BACKEND_URL}/api/payu/failure",
     }
     
     # PayU Biz Hash Formula:

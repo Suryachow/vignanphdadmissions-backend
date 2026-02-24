@@ -35,17 +35,31 @@ async def send_otp_email(email_to: str, otp_code: str):
     message.add_alternative(content, subtype="html")
 
     if settings.SMTP_HOST and settings.SMTP_USER:
-        # For Gmail, we need to decide whether to use starttls or true TLS (port 465)
-        # Port 587 is STARTTLS
-        await aiosmtplib.send(
-            message,
-            hostname=settings.SMTP_HOST,
-            port=settings.SMTP_PORT,
-            username=settings.SMTP_USER,
-            password=settings.SMTP_PASSWORD,
-            use_tls=False, # STARTTLS is not use_tls=True in certain libs, or it's handled via port
-            start_tls=settings.SMTP_TLS,
-        )
+        print(f"Attempting to send OTP email to {email_to} via {settings.SMTP_HOST}:{settings.SMTP_PORT}")
+        try:
+            # Determine TLS settings based on port
+            # Port 465: SSL/TLS (Implicit)
+            # Port 587: STARTTLS (Explicit)
+            use_ssl = settings.SMTP_PORT == 465
+            use_starttls = settings.SMTP_PORT == 587
+            
+            print(f"Using SSL: {use_ssl}, STARTTLS: {use_starttls}")
+            
+            await aiosmtplib.send(
+                message,
+                hostname=settings.SMTP_HOST,
+                port=settings.SMTP_PORT,
+                username=settings.SMTP_USER,
+                password=settings.SMTP_PASSWORD,
+                use_tls=use_ssl, 
+                start_tls=use_starttls,
+            )
+            print(f"✅ OTP email sent successfully to {email_to}")
+        except Exception as e:
+            print(f"❌ Failed to send OTP email to {email_to}: {str(e)}")
+            # Log the full error for debugging
+            import traceback
+            traceback.print_exc()
     else:
         print(f"Skipping email sent (SMTP not configured). OTP for {email_to}: {otp_code}")
 
