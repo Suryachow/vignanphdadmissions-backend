@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Vignan Ph.D Admissions API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api"
+    FRONTEND_URL: str = "http://localhost:5173"
     
     # Security
     SECRET_KEY: str = "changeme"
@@ -32,6 +33,12 @@ class Settings(BaseSettings):
     
     # Storage
     UPLOAD_DIR: str = "./uploads"
+
+    # AWS S3 Storage
+    AWS_ACCESS_KEY_ID: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = None
+    AWS_S3_BUCKET: Optional[str] = None
+    AWS_S3_REGION: str = "us-east-1"
 
     model_config = SettingsConfigDict(
         env_file=".env",

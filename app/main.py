@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import auth, application, payment, step, application_submit
+from app.api.endpoints import auth, application, payment, step, application_submit, admin
 from app.core.config import settings
 from app.db.session import engine
 from app.models import all_models
@@ -20,6 +20,7 @@ app.add_middleware(
 
 # Unified Router for all /api calls
 app.include_router(auth.router, prefix="/api", tags=["Admissions API"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin API"])
 
 # Special PayU sub-router if needed, or we can move it to auth too
 app.include_router(payment.router, prefix="/api/payu", tags=["PayU"])

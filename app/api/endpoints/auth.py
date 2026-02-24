@@ -58,10 +58,34 @@ async def register(user_in: UserRegister, db: Session = Depends(get_db)):
     return user
 
 @router.get("/register/details/")
-def details(email: str, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == email).first()
-    if not user: raise HTTPException(status_code=404)
-    return {"user": {"name": user.full_name, "email": user.email, "phone": user.phone, "payment_status": user.payment_status, "application_status": user.application_status, "program": user.application.department if user.application else ""}}
+def details(email: Optional[str] = None, phone: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(User)
+    user = None
+    
+    if email:
+        user = query.filter(User.email == email).first()
+    elif phone:
+        # Robust phone matching: try direct and then partial match
+        clean_phone = "".join(filter(str.isdigit, phone))
+        if len(clean_phone) >= 10:
+            last_10 = clean_phone[-10:]
+            user = query.filter(User.phone.like(f"%{last_10}")).first()
+        else:
+            user = query.filter(User.phone == phone).first()
+            
+    if not user: 
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    return {
+        "user": {
+            "name": user.full_name, 
+            "email": user.email, 
+            "phone": user.phone, 
+            "payment_status": user.payment_status, 
+            "application_status": user.application_status, 
+            "program": user.application.department if user.application else ""
+        }
+    }
 
 @router.post("/student/change-password")
 async def change_password(data: PasswordChange, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -82,7 +106,16 @@ async def change_password(data: PasswordChange, db: Session = Depends(get_db), c
 def get_payment(transactionId: str, db: Session = Depends(get_db)):
     p = db.query(Payment).filter(Payment.transaction_id == transactionId).first()
     if not p: return {"records": []}
-    return {"records": [{"status": p.status, "payment_data": {"transactionId": p.transaction_id, "paymentAmount": p.amount}}]}
+    return {
+        "records": [{
+            "status": p.status, 
+            "payment_data": {
+                "transactionId": p.transaction_id, 
+                "paymentAmount": p.amount,
+                "errorMessage": p.error_message
+            }
+        }]
+    }
 
 @router.post("/student/coupon/validate")
 def validate_coupon(data: dict):
@@ -92,25 +125,94 @@ def validate_coupon(data: dict):
 
 @router.post("/upload_single_document")
 async def upload(file_key: str, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    # In a real app, use get_current_user. For now, matching existing logic of last user.
     user = db.query(User).order_by(User.id.desc()).first()
-    if not user: raise HTTPException(status_code=404)
+    if not user: raise HTTPException(status_code=404, detail="User not found")
     
-    path = os.path.join(settings.UPLOAD_DIR, f"{user.id}_{file_key}_{file.filename}")
-    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-    with open(path, "wb") as b: shutil.copyfileobj(file.file, b)
+    # Check if S3 is configured
+    if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_S3_BUCKET:
+        raise HTTPException(
+            status_code=500, 
+            detail="Cloud storage (S3) is not configured. Please check environment variables."
+        )
+
+    from app.services.s3_service import s3_service
     
-    doc = Document(user_id=user.id, document_type=file_key, file_name=file.filename, file_path=path)
+    # Prepare unique object name for S3
+    ext = os.path.splitext(file.filename)[1]
+    object_name = f"documents/{user.id}/{file_key}_{uuid.uuid4().hex}{ext}"
+    
+    # Upload to S3
+    file_url = s3_service.upload_file(file.file, object_name)
+    
+    if not file_url:
+        raise HTTPException(status_code=500, detail="Failed to upload file to S3")
+    
+    # Save the S3 URL in the database
+    doc = Document(
+        user_id=user.id, 
+        document_type=file_key, 
+        file_name=file.filename, 
+        file_path=file_url
+    )
     db.add(doc)
     db.commit()
-    return {"id": doc.id}
+    
+    return {"id": doc.id, "url": file_url}
 
 # --- APPLICATIONS ---
 
 @router.get("/applications/")
-def get_apps(email: str, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == email).first()
-    if not user: raise HTTPException(status_code=404)
-    return {"id": user.id, "name": user.full_name, "email": user.email, "personal_info": user.application.personal_details if user.application else {}}
+def get_apps(email: Optional[str] = None, phone: Optional[str] = None, db: Session = Depends(get_db)):
+    query = db.query(User)
+    user = None
+    
+    if email:
+        user = query.filter(User.email == email).first()
+    elif phone:
+        # Robust phone matching
+        clean_phone = "".join(filter(str.isdigit, phone))
+        if len(clean_phone) >= 10:
+            last_10 = clean_phone[-10:]
+            user = query.filter(User.phone.like(f"%{last_10}")).first()
+        else:
+            user = query.filter(User.phone == phone).first()
+
+    if not user: 
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    app = user.application
+    if not app:
+        return {
+            "id": user.id,
+            "name": user.full_name,
+            "email": user.email,
+            "status": "draft",
+            "personal_info": {},
+            "academic_details": {},
+            "address_info": {}
+        }
+
+    return {
+        "id": user.id,
+        "name": user.full_name,
+        "email": user.email,
+        "campus": app.campus_preference,
+        "department": app.department,
+        "specialization": app.specialization,
+        "status": app.status,
+        "application_status": {
+            "status": app.status,
+            "submission_date": app.submission_date
+        },
+        "personal": app.personal_details.get("personal", {}),
+        "address": app.personal_details.get("address", {}),
+        "education": app.academic_details.get("education", {}),
+        "btechEducation": app.academic_details.get("ugEducation", {}),
+        "mtechEducation": app.academic_details.get("pgEducation", {}),
+        "documents": app.experience_details.get("documents", {}),
+        "examSchedule": app.research_details.get("examSchedule", {})
+    }
 
 class PhaseData(BaseModel):
     email: Optional[str] = None

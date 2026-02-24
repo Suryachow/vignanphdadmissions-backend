@@ -14,3 +14,4 @@ requests
 jinja2
 python-slugify
 alembic
+boto3

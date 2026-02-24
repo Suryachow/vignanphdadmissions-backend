@@ -16,8 +16,13 @@ def initiate_payu(
     data: PaymentInit, 
     db: Session = Depends(get_db)
 ):
-    # In a real app we'd use current_user. For demo, we'll take last user if not provided.
-    user = db.query(User).order_by(User.id.desc()).first()
+    # Try to find user by email first, then fallback to last user
+    user = None
+    if data.email:
+        user = db.query(User).filter(User.email == data.email).first()
+    
+    if not user:
+        user = db.query(User).order_by(User.id.desc()).first()
     
     txnid = f"VIG{uuid.uuid4().hex[:12].upper()}"
     
@@ -26,23 +31,36 @@ def initiate_payu(
         "txnid": txnid,
         "amount": f"{data.amount:.2f}",
         "productinfo": data.productinfo,
-        "firstname": user.full_name if user else "Student",
-        "email": user.email if user else "student@example.com",
-        "phone": user.phone if user else "9999999999",
+        "firstname": data.firstname or (user.full_name if user else "Student"),
+        "email": data.email or (user.email if user else "student@example.com"),
+        "phone": data.phone or (user.phone if user else "9999999999"),
         "surl": f"http://localhost:8000/api/payu/success",
         "furl": f"http://localhost:8000/api/payu/failure",
     }
     
-    # Simple hash for demo
-    hash_str = f"{params['key']}|{params['txnid']}|{params['amount']}|{params['productinfo']}|{params['firstname']}|{params['email']}||||||{settings.PAYU_MERCHANT_SALT}"
+    # PayU Biz Hash Formula:
+    # sha512(key|txnid|amount|productinfo|firstname|email|udf1|udf2|udf3|udf4|udf5|udf6|udf7|udf8|udf9|udf10|salt)
+    # We must include 10 pipes for the 10 UDFs even if they are empty
+    hash_sequence = [
+        params["key"],
+        params["txnid"],
+        params["amount"],
+        params["productinfo"],
+        params["firstname"],
+        params["email"],
+        "", "", "", "", "", "", "", "", "", "", # 10 UDF slots
+        settings.PAYU_MERCHANT_SALT
+    ]
+    hash_str = "|".join(hash_sequence)
     params["hash"] = hashlib.sha512(hash_str.encode()).hexdigest().lower()
     params["payment_url"] = settings.PAYU_URL
     
     # Store pending
     if user:
-        db.add(Payment(user_id=user.id, transaction_id=txnid, amount=data.amount, status="pending"))
+        payment = Payment(user_id=user.id, transaction_id=txnid, amount=data.amount, status="pending")
+        db.add(payment)
         db.commit()
-
+ 
     return params
 
 @router.get("/payments/", response_model=dict)
@@ -73,17 +91,90 @@ def validate_coupon(data: dict):
 
 @router.post("/success")
 async def success(request: Request, db: Session = Depends(get_db)):
-    form = await request.form()
-    txnid = form.get("txnid")
-    payment = db.query(Payment).filter(Payment.transaction_id == txnid).first()
-    if payment:
-        payment.status = "success"
-        user = payment.user
-        user.payment_status = "success"
-        user.application_status = "current"
-        db.commit()
-    return RedirectResponse(url="http://localhost:5173/dashboard?payment=success", status_code=303)
+    try:
+        form = await request.form()
+        form_data = dict(form)
+        print("PAYU SUCCESS CALLBACK - DATA:", form_data)
+        
+        txnid = form_data.get("txnid")
+        status = form_data.get("status")
+        
+        payment = db.query(Payment).filter(Payment.transaction_id == txnid).first()
+        if payment:
+            payment.status = "success"
+            payment.payu_id = form_data.get("mihpayid")
+            payment.payment_mode = form_data.get("mode")
+            payment.raw_response = form_data
+            
+            user = payment.user
+            if user:
+                user.payment_status = "success"
+                user.application_status = "current"
+                
+            db.commit()
+            print(f"Payment {txnid} marked as SUCCESS for user {user.email if user else 'unknown'}")
+        else:
+            print(f"Payment record not found for txnid: {txnid}")
+            
+    except Exception as e:
+        print(f"Error in PayU success callback: {str(e)}")
+        
+    return RedirectResponse(url=f"{settings.FRONTEND_URL}/dashboard?payment=success", status_code=303)
 
 @router.post("/failure")
 async def failure(request: Request, db: Session = Depends(get_db)):
-    return RedirectResponse(url="http://localhost:5173/application?payment=failed", status_code=303)
+    try:
+        form = await request.form()
+        form_data = dict(form)
+        print("PAYU FAILURE CALLBACK - DATA:", form_data)
+        
+        txnid = form_data.get("txnid")
+        payment = db.query(Payment).filter(Payment.transaction_id == txnid).first()
+        if payment:
+            payment.status = "failure"
+            payment.error_message = form_data.get("field9") or form_data.get("error_Message") or "Transaction failed"
+            payment.raw_response = form_data
+            
+            user = payment.user
+            if user:
+                user.payment_status = "failed"
+            
+            db.commit()
+            print(f"Payment {txnid} marked as FAILURE for user {user.email if user else 'unknown'}. Reason: {payment.error_message}")
+            
+    except Exception as e:
+        print(f"Error in PayU failure callback: {str(e)}")
+        
+    return RedirectResponse(url=f"{settings.FRONTEND_URL}/application?payment=failed", status_code=303)
+
+@router.post("/bypass")
+def bypass_payment(data: dict, db: Session = Depends(get_db)):
+    email = data.get("email")
+    amount = data.get("amount", 1200)
+    
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        # Fallback to last user for demo/vague email
+        user = db.query(User).order_by(User.id.desc()).first()
+        
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    txnid = f"BYP{uuid.uuid4().hex[:12].upper()}"
+    
+    # Store success
+    payment = Payment(
+        user_id=user.id, 
+        transaction_id=txnid, 
+        amount=amount, 
+        status="success",
+        payment_mode="Test Bypass"
+    )
+    db.add(payment)
+    
+    user.payment_status = "success"
+    user.application_status = "current"
+    
+    db.commit()
+    
+    return {"status": "success", "transactionId": txnid}

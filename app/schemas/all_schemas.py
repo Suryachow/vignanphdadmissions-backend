@@ -125,6 +125,9 @@ class ApplicationUpdate(BaseModel):
 class PaymentInit(BaseModel):
     amount: float
     productinfo: str
+    firstname: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
 
 class PaymentRecord(BaseModel):
     id: int
