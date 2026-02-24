@@ -8,6 +8,8 @@ from app.models.all_models import ApplicationStatus
 class OTPSend(BaseModel):
     type: str  # "email"
     email: EmailStr
+    phone: Optional[str] = None
+    purpose: Optional[str] = None
 
 class OTPVerify(BaseModel):
     type: str  # "email"

@@ -55,14 +55,14 @@ class OTPService:
         return "".join(random.choices(string.digits, k=length))
 
     @staticmethod
-    async def create_otp(db: Session, email: str) -> str:
+    async def create_otp(db: Session, email: str, phone: str = None, purpose: str = None) -> str:
         code = OTPService.generate_otp()
         expires = datetime.utcnow() + timedelta(minutes=10)
         
         # Deactivate/Remove old OTPs for this target
         db.query(OTP).filter(OTP.email == email, OTP.is_used == False).delete()
         
-        db_otp = OTP(email=email, code=code, expires_at=expires)
+        db_otp = OTP(email=email, phone=phone, purpose=purpose, code=code, expires_at=expires)
         db.add(db_otp)
         db.commit()
         

@@ -22,7 +22,7 @@ router = APIRouter()
 
 @router.post("/otp/send")
 async def send_otp(data: OTPSend, db: Session = Depends(get_db)):
-    await otp_service.create_otp(db, email=data.email)
+    await otp_service.create_otp(db, email=data.email, phone=data.phone, purpose=data.purpose)
     return {"message": "OTP sent"}
 
 @router.post("/otp/verify")
