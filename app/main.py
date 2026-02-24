@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.endpoints import auth, application, payment
+from app.api.endpoints import auth, application, payment, step, application_submit
 from app.core.config import settings
 from app.db.session import engine
 from app.models import all_models
@@ -26,6 +26,12 @@ app.include_router(payment.router, prefix="/api/payu", tags=["PayU"])
 
 # Internal student management
 app.include_router(application.router, prefix="/api/student/internal", tags=["Internal"])
+
+# Application submit
+app.include_router(application_submit.router, prefix="/api/application", tags=["Application"])
+
+# Steps
+app.include_router(step.router, prefix="/api/step", tags=["Application Steps"])
 
 @app.get("/")
 def home(): return {"status": "Vignan API Operational"}

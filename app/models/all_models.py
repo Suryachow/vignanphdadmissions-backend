@@ -129,3 +129,11 @@ class ProgramInfo(Base):
     is_full_time = Column(Boolean, default=True)
     is_part_time = Column(Boolean, default=True)
     is_active = Column(Boolean, default=True)
+
+class ApplicationCache(Base):
+    __tablename__ = "application_cache"
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(255), unique=True, index=True)
+    user_id = Column(String(50), index=True)
+    steps = Column(JSON, default={})
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

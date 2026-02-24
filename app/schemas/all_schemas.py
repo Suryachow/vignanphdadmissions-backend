@@ -29,6 +29,10 @@ class UserLogin(BaseModel):
     email: EmailStr
     otp_code: str
 
+class PasswordChange(BaseModel):
+    old_password: Optional[str] = None
+    new_password: str
+
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     phone: Optional[str] = None
