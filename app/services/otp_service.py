@@ -35,6 +35,14 @@ async def send_otp_email(email_to: str, otp_code: str):
     message.add_alternative(content, subtype="html")
 
     if settings.SMTP_HOST and settings.SMTP_USER:
+        print("--- DEBUG: OTP CONFIGURATION ---")
+        print(f"SMTP HOST: {settings.SMTP_HOST}")
+        print(f"SMTP PORT: {settings.SMTP_PORT}")
+        print(f"SMTP USER: {settings.SMTP_USER}")
+        print(f"SMTP FROM: {settings.SMTP_FROM}")
+        print(f"FRONTEND_URL: {settings.FRONTEND_URL}")
+        print("--------------------------------")
+        
         print(f"Attempting to send OTP email to {email_to} via {settings.SMTP_HOST}:{settings.SMTP_PORT}")
         try:
             # Determine TLS settings based on port

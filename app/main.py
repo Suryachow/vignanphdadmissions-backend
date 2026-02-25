@@ -12,7 +12,15 @@ app = FastAPI(title="Vignan PhD API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://65.0.240.183",
+        "http://65.0.240.183:80",
+        "http://13.204.96.58:8000",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "*",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
