@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     # PayU
     PAYU_MERCHANT_KEY: Optional[str] = None
     PAYU_MERCHANT_SALT: Optional[str] = None
-    PAYU_MODE: str = "TEST"
-    PAYU_URL: str = "https://test.payu.in/_payment"
+    PAYU_MODE: str = "LIVE"
+    PAYU_URL: str = "https://secure.payu.in/_payment"
     
     # Storage
     UPLOAD_DIR: str = "./uploads"

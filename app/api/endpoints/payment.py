@@ -83,10 +83,10 @@ def check_payment_status(transactionId: str = Query(...), db: Session = Depends(
 @router.post("/student/coupon/validate")
 def validate_coupon(data: dict):
     code = data.get("code", "").upper()
-    # Simple logic for demo
-    valid_coupons = ["SAVE7X3", "FLARE2025", "VIG100"]
+    # Production coupons - update as needed
+    valid_coupons = {}  # e.g. {"VIGNAN2026": 150}
     if code in valid_coupons:
-        return {"valid": True, "discount": 150}
+        return {"valid": True, "discount": valid_coupons[code]}
     return {"valid": False, "message": "Invalid coupon"}
 
 @router.post("/success")
@@ -147,34 +147,4 @@ async def failure(request: Request, db: Session = Depends(get_db)):
         
     return RedirectResponse(url=f"{settings.FRONTEND_URL}/application?payment=failed", status_code=303)
 
-@router.post("/bypass")
-def bypass_payment(data: dict, db: Session = Depends(get_db)):
-    email = data.get("email")
-    amount = data.get("amount", 1200)
-    
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        # Fallback to last user for demo/vague email
-        user = db.query(User).order_by(User.id.desc()).first()
-        
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-        
-    txnid = f"BYP{uuid.uuid4().hex[:12].upper()}"
-    
-    # Store success
-    payment = Payment(
-        user_id=user.id, 
-        transaction_id=txnid, 
-        amount=amount, 
-        status="success",
-        payment_mode="Test Bypass"
-    )
-    db.add(payment)
-    
-    user.payment_status = "success"
-    user.application_status = "current"
-    
-    db.commit()
-    
-    return {"status": "success", "transactionId": txnid}
+
